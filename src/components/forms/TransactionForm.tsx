@@ -4,11 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateTransaction } from "@/hooks/useFinancialData";
 import { Loader2 } from "lucide-react";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface TransactionFormProps {
   onClose: () => void;
@@ -18,10 +18,11 @@ interface TransactionFormProps {
 interface TransactionFormData {
   amount: number;
   description: string;
+  category: string;
   transaction_type: string;
-  category?: string;
-  source_location?: string;
   transaction_date: string;
+  source_location?: string;
+  currency: string;
 }
 
 const expenseCategories = [
@@ -35,17 +36,26 @@ const expenseCategories = [
   { value: "other", label: "Other" }
 ];
 
+const currencies = [
+  { code: "RWF", name: "Rwandan Franc", symbol: "RWF" },
+  { code: "USD", name: "US Dollar", symbol: "$" },
+];
+
 export function TransactionForm({ onClose, onSuccess }: TransactionFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const createTransaction = useCreateTransaction();
+  const { formatCurrency } = useCurrency();
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<TransactionFormData>({
     defaultValues: {
       transaction_date: new Date().toISOString().split('T')[0],
-      transaction_type: "expense"
+      transaction_type: "expense",
+      currency: "RWF"
     }
   });
+
+  const selectedCurrency = watch("currency");
 
   const onSubmit = async (data: TransactionFormData) => {
     setIsSubmitting(true);
@@ -77,7 +87,7 @@ export function TransactionForm({ onClose, onSuccess }: TransactionFormProps) {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount (RWF)</Label>
+            <Label htmlFor="amount">Amount</Label>
             <Input
               id="amount"
               type="number"
@@ -91,6 +101,26 @@ export function TransactionForm({ onClose, onSuccess }: TransactionFormProps) {
             {errors.amount && (
               <p className="text-sm text-destructive">{errors.amount.message}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Currency</Label>
+            <Select value={selectedCurrency} onValueChange={(value) => setValue("currency", value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencies.map((currency) => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{currency.symbol}</span>
+                      <span className="text-muted-foreground">{currency.name}</span>
+                      <span className="text-xs text-muted-foreground">({currency.code})</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -119,15 +149,9 @@ export function TransactionForm({ onClose, onSuccess }: TransactionFormProps) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="source_location">Where</Label>
-            <Input
-              id="source_location"
-              placeholder="Store, restaurant, etc."
-              {...register("source_location")}
-            />
+            {errors.category && (
+              <p className="text-sm text-destructive">{errors.category.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -140,6 +164,15 @@ export function TransactionForm({ onClose, onSuccess }: TransactionFormProps) {
             {errors.transaction_date && (
               <p className="text-sm text-destructive">{errors.transaction_date.message}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="source_location">Payment Method (Optional)</Label>
+            <Input
+              id="source_location"
+              placeholder="e.g., Cash, Card, Mobile Money"
+              {...register("source_location")}
+            />
           </div>
 
           <div className="flex gap-3 pt-4">

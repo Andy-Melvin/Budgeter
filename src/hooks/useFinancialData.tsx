@@ -11,6 +11,7 @@ export interface IncomeSource {
   source_location: string;
   received_date: string;
   category?: string;
+  currency: string;
   created_at: string;
 }
 
@@ -21,6 +22,7 @@ export interface Asset {
   current_value: number;
   location?: string;
   description?: string;
+  currency: string;
   created_at: string;
 }
 
@@ -31,6 +33,7 @@ export interface FinancialGoal {
   current_amount: number;
   target_date: string;
   priority: string;
+  currency: string;
   created_at: string;
 }
 
@@ -40,7 +43,8 @@ export interface BudgetCategory {
   budgeted_amount: number;
   spent_amount: number;
   month_year: string;
-  color?: string; // Made optional until database is updated
+  color?: string;
+  currency: string;
   created_at: string;
 }
 
@@ -53,6 +57,7 @@ export interface Transaction {
   source_location?: string;
   transaction_date: string;
   budget_category_id?: string;
+  currency: string;
   created_at: string;
 }
 
@@ -67,6 +72,7 @@ export interface Profile {
   monthly_income_goal?: number;
   savings_goal_percentage?: number;
   current_earnings: number;
+  currency: string;
   created_at: string;
   updated_at: string;
 }
@@ -130,13 +136,13 @@ export function useBudgetCategories(monthYear: string) {
   const { user } = useAuth();
   
   return useQuery({
-    queryKey: ["budget_categories", user?.id, monthYear],
+    queryKey: ["budget-categories", user?.id, monthYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("budget_categories")
         .select("*")
         .eq("month_year", monthYear)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: true });
       
       if (error) throw error;
       return data as BudgetCategory[];
@@ -174,10 +180,10 @@ export function useProfile() {
         .from("profiles")
         .select("*")
         .eq("user_id", user?.id)
-        .maybeSingle();
+        .single();
       
       if (error) throw error;
-      return data as Profile | null;
+      return data as Profile;
     },
     enabled: !!user,
   });
@@ -211,51 +217,118 @@ export function useCurrentEarnings() {
   });
 }
 
-// Mutation hooks for CRUD operations
+// Mutations
 export function useCreateIncome() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   
   return useMutation({
-    mutationFn: async (income: Omit<IncomeSource, "id" | "created_at" | "updated_at">) => {
-      const { data, error } = await supabase
+    mutationFn: async (data: Omit<IncomeSource, "id" | "created_at">) => {
+      const { data: result, error } = await supabase
         .from("income_sources")
-        .insert([{ ...income, user_id: user?.id }])
+        .insert([{ ...data, user_id: user?.id }])
         .select()
         .single();
       
       if (error) throw error;
-      return data;
+      return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["incomes"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
+      queryClient.invalidateQueries({ queryKey: ["incomes", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["current-earnings", user?.id] });
     },
   });
 }
 
-export function useDeleteIncome() {
+export function useCreateAsset() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
-    mutationFn: async (incomeId: string) => {
-      const { error } = await supabase
-        .from("income_sources")
-        .delete()
-        .eq("id", incomeId);
+    mutationFn: async (data: Omit<Asset, "id" | "created_at">) => {
+      const { data: result, error } = await supabase
+        .from("assets")
+        .insert([{ ...data, user_id: user?.id }])
+        .select()
+        .single();
       
       if (error) throw error;
-      return incomeId;
+      return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["incomes"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
+      queryClient.invalidateQueries({ queryKey: ["assets", user?.id] });
     },
   });
 }
 
+export function useCreateGoal() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (data: Omit<FinancialGoal, "id" | "created_at">) => {
+      const { data: result, error } = await supabase
+        .from("financial_goals")
+        .insert([{ ...data, user_id: user?.id }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["goals", user?.id] });
+    },
+  });
+}
+
+export function useCreateBudgetCategory() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (data: Omit<BudgetCategory, "id" | "created_at" | "updated_at">) => {
+      const { data: result, error } = await supabase
+        .from("budget_categories")
+        .insert([{ ...data, user_id: user?.id }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["budget-categories", user?.id] });
+    },
+  });
+}
+
+export function useCreateTransaction() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (data: Omit<Transaction, "id" | "created_at" | "updated_at">) => {
+      const { data: result, error } = await supabase
+        .from("transactions")
+        .insert([{ ...data, user_id: user?.id }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["current-earnings", user?.id] });
+    },
+  });
+}
+
+// Update mutations
 export function useUpdateIncome() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<IncomeSource> }) => {
@@ -270,226 +343,15 @@ export function useUpdateIncome() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["incomes"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useCreateAsset() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  
-  return useMutation({
-    mutationFn: async (asset: Omit<Asset, "id" | "created_at" | "updated_at">) => {
-      const { data, error } = await supabase
-        .from("assets")
-        .insert([{ ...asset, user_id: user?.id }])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useDeleteAsset() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (assetId: string) => {
-      const { error } = await supabase
-        .from("assets")
-        .delete()
-        .eq("id", assetId);
-      
-      if (error) throw error;
-      return assetId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useCreateGoal() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  
-  return useMutation({
-    mutationFn: async (goal: Omit<FinancialGoal, "id" | "created_at" | "updated_at">) => {
-      const { data, error } = await supabase
-        .from("financial_goals")
-        .insert([{ ...goal, user_id: user?.id }])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useDeleteGoal() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (goalId: string) => {
-      const { error } = await supabase
-        .from("financial_goals")
-        .delete()
-        .eq("id", goalId);
-      
-      if (error) throw error;
-      return goalId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useUpdateGoal() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<FinancialGoal> }) => {
-      const { data, error } = await supabase
-        .from("financial_goals")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useCreateBudgetCategory() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  
-  return useMutation({
-    mutationFn: async (category: Omit<BudgetCategory, "id" | "created_at" | "updated_at">) => {
-      const { data, error } = await supabase
-        .from("budget_categories")
-        .insert([{ ...category, user_id: user?.id }])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budget_categories"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useDeleteBudgetCategory() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (categoryId: string) => {
-      const { error } = await supabase
-        .from("budget_categories")
-        .delete()
-        .eq("id", categoryId);
-      
-      if (error) throw error;
-      return categoryId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budget_categories"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useUpdateBudgetCategory() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<BudgetCategory> }) => {
-      const { data, error } = await supabase
-        .from("budget_categories")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budget_categories"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useCreateTransaction() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  
-  return useMutation({
-    mutationFn: async (transaction: Omit<Transaction, "id" | "created_at" | "updated_at">) => {
-      const { data, error } = await supabase
-        .from("transactions")
-        .insert([{ ...transaction, user_id: user?.id }])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
-    },
-  });
-}
-
-export function useDeleteTransaction() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (transactionId: string) => {
-      const { error } = await supabase
-        .from("transactions")
-        .delete()
-        .eq("id", transactionId);
-      
-      if (error) throw error;
-      return transactionId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
+      queryClient.invalidateQueries({ queryKey: ["incomes", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["current-earnings", user?.id] });
     },
   });
 }
 
 export function useUpdateTransaction() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Transaction> }) => {
@@ -504,14 +366,59 @@ export function useUpdateTransaction() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
+      queryClient.invalidateQueries({ queryKey: ["transactions", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["current-earnings", user?.id] });
+    },
+  });
+}
+
+export function useUpdateGoal() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<FinancialGoal> }) => {
+      const { data, error } = await supabase
+        .from("financial_goals")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["goals", user?.id] });
+    },
+  });
+}
+
+export function useUpdateBudgetCategory() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<BudgetCategory> }) => {
+      const { data, error } = await supabase
+        .from("budget_categories")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["budget-categories", user?.id] });
     },
   });
 }
 
 export function useUpdateGoalAmount() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ goalId, newAmount }: { goalId: string; newAmount: number }) => {
@@ -526,8 +433,106 @@ export function useUpdateGoalAmount() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-      queryClient.invalidateQueries({ queryKey: ["current-earnings"] }); // Invalidate current earnings
+      queryClient.invalidateQueries({ queryKey: ["goals", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["current-earnings", user?.id] });
+    },
+  });
+}
+
+// Delete mutations
+export function useDeleteIncome() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("income_sources")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["incomes", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["current-earnings", user?.id] });
+    },
+  });
+}
+
+export function useDeleteAsset() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("assets")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets", user?.id] });
+    },
+  });
+}
+
+export function useDeleteGoal() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("financial_goals")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["goals", user?.id] });
+    },
+  });
+}
+
+export function useDeleteBudgetCategory() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("budget_categories")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["budget-categories", user?.id] });
+    },
+  });
+}
+
+export function useDeleteTransaction() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("transactions")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["current-earnings", user?.id] });
     },
   });
 }

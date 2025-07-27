@@ -4,10 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateBudgetCategory, useProfile, useCurrentEarnings } from "@/hooks/useFinancialData";
 import { Loader2, PiggyBank } from "lucide-react";
 import { format } from "date-fns";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface BudgetCategoryFormProps {
   onClose: () => void;
@@ -17,6 +19,7 @@ interface BudgetCategoryFormProps {
 interface BudgetCategoryFormData {
   category_name: string;
   budgeted_amount: number;
+  currency: string;
   color: string;
 }
 
@@ -31,28 +34,28 @@ const predefinedColors = [
   { value: "#f97316", label: "Orange" },
 ];
 
+const currencies = [
+  { code: "RWF", name: "Rwandan Franc", symbol: "RWF" },
+  { code: "USD", name: "US Dollar", symbol: "$" },
+];
+
 export function BudgetCategoryForm({ onClose, onSuccess }: BudgetCategoryFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const createBudgetCategory = useCreateBudgetCategory();
   const { data: profile } = useProfile();
   const { data: currentEarnings } = useCurrentEarnings();
+  const { formatCurrency } = useCurrency();
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<BudgetCategoryFormData>({
     defaultValues: {
-      color: predefinedColors[0].value
+      color: predefinedColors[0].value,
+      currency: "RWF"
     }
   });
 
   const selectedColor = watch("color");
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-RW', {
-      style: 'currency',
-      currency: 'RWF',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  const selectedCurrency = watch("currency");
 
   const onSubmit = async (data: BudgetCategoryFormData) => {
     
@@ -72,9 +75,9 @@ export function BudgetCategoryForm({ onClose, onSuccess }: BudgetCategoryFormPro
       await createBudgetCategory.mutateAsync({
         category_name: data.category_name,
         budgeted_amount: data.budgeted_amount,
+        currency: data.currency,
         month_year: currentMonth,
         spent_amount: 0
-        // Temporarily removed color field until database is updated
       });
       
       toast({
@@ -122,7 +125,7 @@ export function BudgetCategoryForm({ onClose, onSuccess }: BudgetCategoryFormPro
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="budgeted_amount">Budget Amount (RWF)</Label>
+            <Label htmlFor="budgeted_amount">Budget Amount</Label>
             <Input
               id="budgeted_amount"
               type="number"
@@ -137,6 +140,26 @@ export function BudgetCategoryForm({ onClose, onSuccess }: BudgetCategoryFormPro
             {errors.budgeted_amount && (
               <p className="text-sm text-destructive">{errors.budgeted_amount.message}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Currency</Label>
+            <Select value={selectedCurrency} onValueChange={(value) => setValue("currency", value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencies.map((currency) => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{currency.symbol}</span>
+                      <span className="text-muted-foreground">{currency.name}</span>
+                      <span className="text-xs text-muted-foreground">({currency.code})</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

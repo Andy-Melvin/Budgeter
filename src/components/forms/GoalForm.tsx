@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateGoal } from "@/hooks/useFinancialData";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/hooks/useCurrency";
 import { Loader2, X } from "lucide-react";
 
 interface GoalFormProps {
@@ -21,6 +22,7 @@ interface GoalFormData {
   current_amount: number;
   target_date: string;
   priority: string;
+  currency: string;
 }
 
 const priorities = [
@@ -29,16 +31,25 @@ const priorities = [
   { value: "low", label: "Low Priority" },
 ];
 
+const currencies = [
+  { code: "RWF", name: "Rwandan Franc", symbol: "RWF" },
+  { code: "USD", name: "US Dollar", symbol: "$" },
+];
+
 export function GoalForm({ onClose, onSuccess }: GoalFormProps) {
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm<GoalFormData>({
+  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<GoalFormData>({
     defaultValues: {
       current_amount: 0,
-      priority: "medium"
+      priority: "medium",
+      currency: "RWF"
     }
   });
   const createGoal = useCreateGoal();
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const selectedCurrency = watch("currency");
 
   const onSubmit = async (data: GoalFormData) => {
     setIsSubmitting(true);
@@ -46,7 +57,7 @@ export function GoalForm({ onClose, onSuccess }: GoalFormProps) {
       await createGoal.mutateAsync(data);
       toast({
         title: "Goal created successfully!",
-        description: `${data.goal_name} - Target: ${new Intl.NumberFormat('en-RW', { style: 'currency', currency: 'RWF' }).format(data.target_amount)}`,
+        description: `${data.goal_name} - Target: ${formatCurrency(data.target_amount)}`,
       });
       onSuccess?.();
       onClose();
@@ -84,7 +95,7 @@ export function GoalForm({ onClose, onSuccess }: GoalFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="target_amount">Target Amount (RWF)</Label>
+            <Label htmlFor="target_amount">Target Amount</Label>
             <Input
               id="target_amount"
               type="number"
@@ -102,12 +113,32 @@ export function GoalForm({ onClose, onSuccess }: GoalFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="current_amount">Current Amount (RWF)</Label>
+            <Label>Currency</Label>
+            <Select value={selectedCurrency} onValueChange={(value) => setValue("currency", value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencies.map((currency) => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{currency.symbol}</span>
+                      <span className="text-muted-foreground">{currency.name}</span>
+                      <span className="text-xs text-muted-foreground">({currency.code})</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="current_amount">Current Amount</Label>
             <Input
               id="current_amount"
               type="number"
               step="0.01"
-              placeholder="How much do you already have?"
+              placeholder="Enter current amount"
               {...register("current_amount", { 
                 valueAsNumber: true,
                 min: { value: 0, message: "Current amount cannot be negative" }
@@ -131,10 +162,10 @@ export function GoalForm({ onClose, onSuccess }: GoalFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="priority">Priority</Label>
-            <Select onValueChange={(value) => setValue("priority", value)} defaultValue="medium">
+            <Label>Priority</Label>
+            <Select onValueChange={(value) => setValue("priority", value)}>
               <SelectTrigger>
-                <SelectValue placeholder="Select priority level" />
+                <SelectValue placeholder="Select priority" />
               </SelectTrigger>
               <SelectContent>
                 {priorities.map((priority) => (
@@ -144,9 +175,12 @@ export function GoalForm({ onClose, onSuccess }: GoalFormProps) {
                 ))}
               </SelectContent>
             </Select>
+            {errors.priority && (
+              <p className="text-sm text-destructive">{errors.priority.message}</p>
+            )}
           </div>
 
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>

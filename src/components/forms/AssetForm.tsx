@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateAsset } from "@/hooks/useFinancialData";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/hooks/useCurrency";
 import { Loader2, X } from "lucide-react";
 
 interface AssetFormProps {
@@ -21,6 +22,7 @@ interface AssetFormData {
   current_value: number;
   location?: string;
   description?: string;
+  currency: string;
 }
 
 const assetTypes = [
@@ -35,11 +37,23 @@ const assetTypes = [
   { value: "other", label: "Other" },
 ];
 
+const currencies = [
+  { code: "RWF", name: "Rwandan Franc", symbol: "RWF" },
+  { code: "USD", name: "US Dollar", symbol: "$" },
+];
+
 export function AssetForm({ onClose, onSuccess }: AssetFormProps) {
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm<AssetFormData>();
+  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<AssetFormData>({
+    defaultValues: {
+      currency: "RWF"
+    }
+  });
   const createAsset = useCreateAsset();
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const selectedCurrency = watch("currency");
 
   const onSubmit = async (data: AssetFormData) => {
     setIsSubmitting(true);
@@ -47,7 +61,7 @@ export function AssetForm({ onClose, onSuccess }: AssetFormProps) {
       await createAsset.mutateAsync(data);
       toast({
         title: "Asset added successfully!",
-        description: `${data.asset_name} - ${new Intl.NumberFormat('en-RW', { style: 'currency', currency: 'RWF' }).format(data.current_value)}`,
+        description: `${data.asset_name} - ${formatCurrency(data.current_value)}`,
       });
       onSuccess?.();
       onClose();
@@ -73,10 +87,10 @@ export function AssetForm({ onClose, onSuccess }: AssetFormProps) {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Asset Name</Label>
+            <Label htmlFor="asset_name">Asset Name</Label>
             <Input
-              id="name"
-              placeholder="e.g., BK Savings Account, Kigali Land"
+              id="asset_name"
+              placeholder="e.g., Savings Account, Car, House"
               {...register("asset_name", { required: "Asset name is required" })}
             />
             {errors.asset_name && (
@@ -85,7 +99,7 @@ export function AssetForm({ onClose, onSuccess }: AssetFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="asset_type">Asset Type</Label>
+            <Label>Asset Type</Label>
             <Select onValueChange={(value) => setValue("asset_type", value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select asset type" />
@@ -104,7 +118,7 @@ export function AssetForm({ onClose, onSuccess }: AssetFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="current_value">Current Value (RWF)</Label>
+            <Label htmlFor="current_value">Current Value</Label>
             <Input
               id="current_value"
               type="number"
@@ -113,7 +127,7 @@ export function AssetForm({ onClose, onSuccess }: AssetFormProps) {
               {...register("current_value", { 
                 required: "Current value is required",
                 valueAsNumber: true,
-                min: { value: 0, message: "Value must be 0 or greater" }
+                min: { value: 0, message: "Value cannot be negative" }
               })}
             />
             {errors.current_value && (
@@ -122,10 +136,30 @@ export function AssetForm({ onClose, onSuccess }: AssetFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="location">Location/Institution (Optional)</Label>
+            <Label>Currency</Label>
+            <Select value={selectedCurrency} onValueChange={(value) => setValue("currency", value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencies.map((currency) => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{currency.symbol}</span>
+                      <span className="text-muted-foreground">{currency.name}</span>
+                      <span className="text-xs text-muted-foreground">({currency.code})</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="location">Location (Optional)</Label>
             <Input
               id="location"
-              placeholder="e.g., Bank of Kigali, MTN Mobile Money"
+              placeholder="e.g., Bank name, Platform, Physical location"
               {...register("location")}
             />
           </div>
@@ -134,12 +168,12 @@ export function AssetForm({ onClose, onSuccess }: AssetFormProps) {
             <Label htmlFor="description">Description (Optional)</Label>
             <Textarea
               id="description"
-              placeholder="Additional details about this asset"
+              placeholder="Additional details about the asset"
               {...register("description")}
             />
           </div>
 
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>

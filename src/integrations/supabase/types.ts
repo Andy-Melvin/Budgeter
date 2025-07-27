@@ -19,6 +19,7 @@ export type Database = {
           asset_name: string
           asset_type: string
           created_at: string
+          currency: string | null
           current_value: number
           description: string | null
           id: string
@@ -31,6 +32,7 @@ export type Database = {
           asset_name: string
           asset_type: string
           created_at?: string
+          currency?: string | null
           current_value: number
           description?: string | null
           id?: string
@@ -43,6 +45,7 @@ export type Database = {
           asset_name?: string
           asset_type?: string
           created_at?: string
+          currency?: string | null
           current_value?: number
           description?: string | null
           id?: string
@@ -57,7 +60,9 @@ export type Database = {
         Row: {
           budgeted_amount: number
           category_name: string
+          color: string | null
           created_at: string
+          currency: string | null
           id: string
           month_year: string
           spent_amount: number | null
@@ -67,7 +72,9 @@ export type Database = {
         Insert: {
           budgeted_amount: number
           category_name: string
+          color?: string | null
           created_at?: string
+          currency?: string | null
           id?: string
           month_year: string
           spent_amount?: number | null
@@ -77,7 +84,9 @@ export type Database = {
         Update: {
           budgeted_amount?: number
           category_name?: string
+          color?: string | null
           created_at?: string
+          currency?: string | null
           id?: string
           month_year?: string
           spent_amount?: number | null
@@ -89,6 +98,7 @@ export type Database = {
       financial_goals: {
         Row: {
           created_at: string
+          currency: string | null
           current_amount: number | null
           goal_name: string
           id: string
@@ -100,6 +110,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          currency?: string | null
           current_amount?: number | null
           goal_name: string
           id?: string
@@ -111,6 +122,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          currency?: string | null
           current_amount?: number | null
           goal_name?: string
           id?: string
@@ -127,6 +139,7 @@ export type Database = {
           amount: number
           category: string | null
           created_at: string
+          currency: string | null
           description: string
           id: string
           received_date: string
@@ -139,6 +152,7 @@ export type Database = {
           amount: number
           category?: string | null
           created_at?: string
+          currency?: string | null
           description: string
           id?: string
           received_date?: string
@@ -151,6 +165,7 @@ export type Database = {
           amount?: number
           category?: string | null
           created_at?: string
+          currency?: string | null
           description?: string
           id?: string
           received_date?: string
@@ -164,6 +179,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          currency: string | null
           current_earnings: number | null
           first_name: string | null
           id: string
@@ -173,6 +189,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          currency?: string | null
           current_earnings?: number | null
           first_name?: string | null
           id?: string
@@ -182,6 +199,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          currency?: string | null
           current_earnings?: number | null
           first_name?: string | null
           id?: string
@@ -197,6 +215,7 @@ export type Database = {
           budget_category_id: string | null
           category: string
           created_at: string
+          currency: string | null
           description: string
           id: string
           source_location: string | null
@@ -210,6 +229,7 @@ export type Database = {
           budget_category_id?: string | null
           category: string
           created_at?: string
+          currency?: string | null
           description: string
           id?: string
           source_location?: string | null
@@ -223,6 +243,7 @@ export type Database = {
           budget_category_id?: string | null
           category?: string
           created_at?: string
+          currency?: string | null
           description?: string
           id?: string
           source_location?: string | null

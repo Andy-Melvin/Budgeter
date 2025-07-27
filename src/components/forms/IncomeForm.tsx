@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateIncome } from "@/hooks/useFinancialData";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/hooks/useCurrency";
 import { Loader2, X } from "lucide-react";
 
 interface IncomeFormProps {
@@ -22,6 +23,7 @@ interface IncomeFormData {
   source_location: string;
   received_date: string;
   category?: string;
+  currency: string;
 }
 
 const sourceTypes = [
@@ -42,11 +44,23 @@ const sourceLocations = [
   { value: "other", label: "Other" },
 ];
 
+const currencies = [
+  { code: "RWF", name: "Rwandan Franc", symbol: "RWF" },
+  { code: "USD", name: "US Dollar", symbol: "$" },
+];
+
 export function IncomeForm({ onClose, onSuccess }: IncomeFormProps) {
-  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<IncomeFormData>();
+  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<IncomeFormData>({
+    defaultValues: {
+      currency: "RWF"
+    }
+  });
   const createIncome = useCreateIncome();
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const selectedCurrency = watch("currency");
 
   const onSubmit = async (data: IncomeFormData) => {
     setIsSubmitting(true);
@@ -54,7 +68,7 @@ export function IncomeForm({ onClose, onSuccess }: IncomeFormProps) {
       await createIncome.mutateAsync(data);
       toast({
         title: "Earnings added successfully!",
-        description: `${data.description} - ${new Intl.NumberFormat('en-RW', { style: 'currency', currency: 'RWF' }).format(data.amount)}`,
+        description: `${data.description} - ${formatCurrency(data.amount)}`,
       });
       onSuccess?.();
       onClose();
@@ -80,7 +94,7 @@ export function IncomeForm({ onClose, onSuccess }: IncomeFormProps) {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount (RWF)</Label>
+            <Label htmlFor="amount">Amount</Label>
             <Input
               id="amount"
               type="number"
@@ -98,6 +112,26 @@ export function IncomeForm({ onClose, onSuccess }: IncomeFormProps) {
           </div>
 
           <div className="space-y-2">
+            <Label>Currency</Label>
+            <Select value={selectedCurrency} onValueChange={(value) => setValue("currency", value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencies.map((currency) => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{currency.symbol}</span>
+                      <span className="text-muted-foreground">{currency.name}</span>
+                      <span className="text-xs text-muted-foreground">({currency.code})</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Input
               id="description"
@@ -110,10 +144,10 @@ export function IncomeForm({ onClose, onSuccess }: IncomeFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="source_type">Source Type</Label>
+            <Label>Source Type</Label>
             <Select onValueChange={(value) => setValue("source_type", value)}>
               <SelectTrigger>
-                <SelectValue placeholder="Select income source type" />
+                <SelectValue placeholder="Select source type" />
               </SelectTrigger>
               <SelectContent>
                 {sourceTypes.map((type) => (
@@ -129,10 +163,10 @@ export function IncomeForm({ onClose, onSuccess }: IncomeFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="source_location">Received In</Label>
+            <Label>Source Location</Label>
             <Select onValueChange={(value) => setValue("source_location", value)}>
               <SelectTrigger>
-                <SelectValue placeholder="Where did you receive this income?" />
+                <SelectValue placeholder="Select source location" />
               </SelectTrigger>
               <SelectContent>
                 {sourceLocations.map((location) => (
@@ -148,7 +182,7 @@ export function IncomeForm({ onClose, onSuccess }: IncomeFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="received_date">Date Received</Label>
+            <Label htmlFor="received_date">Received Date</Label>
             <Input
               id="received_date"
               type="date"
@@ -163,12 +197,12 @@ export function IncomeForm({ onClose, onSuccess }: IncomeFormProps) {
             <Label htmlFor="category">Category (Optional)</Label>
             <Input
               id="category"
-              placeholder="e.g., Primary, Secondary"
+              placeholder="e.g., Work, Side hustle"
               {...register("category")}
             />
           </div>
 
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>
