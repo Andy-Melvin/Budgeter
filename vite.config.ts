@@ -20,5 +20,11 @@ export default defineConfig(({ mode }) => ({
     outDir: "dist",
     sourcemap: false,
     minify: "esbuild",
+    rollupOptions: {
+      external: [],
+    },
   },
+  optimizeDeps: {
+    exclude: ['rollup']
+  }
 }));
