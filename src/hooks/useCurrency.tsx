@@ -15,7 +15,10 @@ export const currencies: Currency[] = [
 interface CurrencyContextType {
   selectedCurrency: Currency;
   setSelectedCurrency: (currency: Currency) => void;
-  formatCurrency: (amount: number) => string;
+  formatCurrency: (amount: number, currencyCode?: string) => string;
+  formatCurrencyWithCurrency: (amount: number, currencyCode: string) => string;
+  getCurrencyByCode: (code: string) => Currency | undefined;
+  groupByCurrency: <T extends { currency: string; amount: number }>(items: T[]) => Record<string, { items: T[]; total: number }>;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
@@ -23,17 +26,57 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>(currencies[0]); // Default to RWF
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat(selectedCurrency.locale, {
+  const formatCurrency = (amount: number, currencyCode?: string): string => {
+    const currency = currencyCode 
+      ? currencies.find(c => c.code === currencyCode) || selectedCurrency
+      : selectedCurrency;
+    
+    return new Intl.NumberFormat(currency.locale, {
       style: 'currency',
-      currency: selectedCurrency.code,
+      currency: currency.code,
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     }).format(amount);
   };
 
+  const formatCurrencyWithCurrency = (amount: number, currencyCode: string): string => {
+    const currency = currencies.find(c => c.code === currencyCode) || currencies[0];
+    
+    return new Intl.NumberFormat(currency.locale, {
+      style: 'currency',
+      currency: currency.code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const getCurrencyByCode = (code: string): Currency | undefined => {
+    return currencies.find(c => c.code === code);
+  };
+
+  const groupByCurrency = <T extends { currency: string; amount: number }>(items: T[]) => {
+    const grouped: Record<string, { items: T[]; total: number }> = {};
+    
+    items.forEach(item => {
+      if (!grouped[item.currency]) {
+        grouped[item.currency] = { items: [], total: 0 };
+      }
+      grouped[item.currency].items.push(item);
+      grouped[item.currency].total += item.amount;
+    });
+    
+    return grouped;
+  };
+
   return (
-    <CurrencyContext.Provider value={{ selectedCurrency, setSelectedCurrency, formatCurrency }}>
+    <CurrencyContext.Provider value={{ 
+      selectedCurrency, 
+      setSelectedCurrency, 
+      formatCurrency, 
+      formatCurrencyWithCurrency,
+      getCurrencyByCode,
+      groupByCurrency
+    }}>
       {children}
     </CurrencyContext.Provider>
   );

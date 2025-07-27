@@ -3,24 +3,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Target, Trophy, Calendar, TrendingUp, AlertCircle, DollarSign, Edit, Trash2, Loader2 } from "lucide-react";
-import { useGoals, FinancialGoal, useDeleteGoal } from "@/hooks/useFinancialData";
-import { GoalForm } from "@/components/forms/GoalForm";
-import { UpdateGoalForm } from "@/components/forms/UpdateGoalForm";
-import { EditGoalForm } from "@/components/forms/EditGoalForm";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { 
+  Plus, 
+  Target, 
+  TrendingUp, 
+  Calendar, 
+  AlertCircle,
+  Edit,
+  Trash2,
+  Loader2
+} from "lucide-react";
+import { useGoals, useDeleteGoal, FinancialGoal } from "@/hooks/useFinancialData";
+import { GoalForm } from "@/components/forms/GoalForm";
+import { EditGoalForm } from "@/components/forms/EditGoalForm";
 import { useToast } from "@/hooks/use-toast";
-
-const getPriorityColor = (priority: string) => {
-  switch (priority) {
-    case "high": return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
-    case "medium": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
-    case "low": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
-    default: return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
-  }
-};
+import { useCurrency } from "@/hooks/useCurrency";
 
 export default function Goals() {
   const [showForm, setShowForm] = useState(false);
@@ -30,14 +30,7 @@ export default function Goals() {
   const { data: goals, isLoading } = useGoals();
   const deleteGoal = useDeleteGoal();
   const { toast } = useToast();
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-RW', {
-      style: 'currency',
-      currency: 'RWF',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  const { formatCurrencyWithCurrency, groupByCurrency } = useCurrency();
 
   const handleDeleteGoal = async () => {
     if (!goalToDelete) return;
@@ -57,6 +50,17 @@ export default function Goals() {
       });
     }
   };
+
+  // Calculate totals with currency grouping
+  const goalsByCurrency = goals ? groupByCurrency(goals.map(goal => ({ 
+    currency: goal.currency, 
+    amount: Number(goal.target_amount) 
+  }))) : {};
+
+  const savedByCurrency = goals ? groupByCurrency(goals.map(goal => ({ 
+    currency: goal.currency, 
+    amount: Number(goal.current_amount || 0) 
+  }))) : {};
 
   const totalValue = goals?.reduce((sum, goal) => sum + Number(goal.target_amount), 0) || 0;
   const allGoals = goals || [];
@@ -78,45 +82,34 @@ export default function Goals() {
     );
   }
 
-  if (selectedGoal) {
+  if (isLoading) {
     return (
       <div className="space-y-8">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Update Goal</h1>
-            <p className="text-muted-foreground">Add or subtract money from your goal</p>
+            <h1 className="text-3xl font-bold">Financial Goals</h1>
+            <p className="text-muted-foreground">Set and track your financial objectives</p>
           </div>
+          <Skeleton className="h-10 w-32" />
         </div>
-        <UpdateGoalForm 
-          goal={selectedGoal}
-          onClose={() => setSelectedGoal(null)} 
-          onSuccess={() => setSelectedGoal(null)} 
-        />
-      </div>
-    );
-  }
-
-  if (showEditForm && selectedGoal) {
-    return (
-      <div className="space-y-8">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Edit Goal</h1>
-            <p className="text-muted-foreground">Edit your financial goal details</p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
-        <EditGoalForm 
-          goal={selectedGoal}
-          onClose={() => setShowEditForm(false)}
-          onSuccess={() => {
-            setShowEditForm(false);
-            setSelectedGoal(null);
-            toast({
-              title: "Goal updated",
-              description: `Goal "${selectedGoal?.goal_name}" updated successfully.`,
-            });
-          }}
-        />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <Skeleton className="h-32 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -154,7 +147,16 @@ export default function Goals() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Target</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalValue)}</div>
+            <div className="space-y-1">
+              {Object.entries(goalsByCurrency).map(([currency, { total }]) => (
+                <div key={currency} className="text-2xl font-bold">
+                  {formatCurrencyWithCurrency(total, currency)}
+                </div>
+              ))}
+              {Object.keys(goalsByCurrency).length === 0 && (
+                <div className="text-2xl font-bold">RWF 0</div>
+              )}
+            </div>
             <Badge variant="secondary" className="mt-2">
               <TrendingUp className="w-3 h-3 mr-1" />
               Target amount
@@ -167,7 +169,16 @@ export default function Goals() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Saved</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(allGoals.reduce((sum, goal) => sum + Number(goal.current_amount), 0))}</div>
+            <div className="space-y-1">
+              {Object.entries(savedByCurrency).map(([currency, { total }]) => (
+                <div key={currency} className="text-2xl font-bold">
+                  {formatCurrencyWithCurrency(total, currency)}
+                </div>
+              ))}
+              {Object.keys(savedByCurrency).length === 0 && (
+                <div className="text-2xl font-bold">RWF 0</div>
+              )}
+            </div>
             <Badge variant="secondary" className="mt-2">
               Current progress
             </Badge>
@@ -176,13 +187,16 @@ export default function Goals() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{allGoals.filter(goal => goal.current_amount >= goal.target_amount).length}</div>
+            <div className="text-2xl font-bold">
+              {totalValue > 0 
+                ? Math.round((allGoals.reduce((sum, goal) => sum + Number(goal.current_amount || 0), 0) / totalValue) * 100)
+                : 0}%
+            </div>
             <Badge variant="secondary" className="mt-2">
-              <Trophy className="w-3 h-3 mr-1" />
-              Completed
+              Overall completion
             </Badge>
           </CardContent>
         </Card>
@@ -191,68 +205,77 @@ export default function Goals() {
       {/* Goals List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="w-5 h-5" />
-            Your Goals
-          </CardTitle>
-          <CardDescription>Track progress towards your financial objectives</CardDescription>
+          <CardTitle>All Financial Goals</CardTitle>
+          <CardDescription>Track your progress towards major purchases</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="space-y-6">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <Skeleton className="h-5 w-[200px]" />
-                    <Skeleton className="h-5 w-[100px]" />
-                  </div>
-                  <Skeleton className="h-2 w-full" />
-                  <div className="flex justify-between">
-                    <Skeleton className="h-4 w-[150px]" />
-                    <Skeleton className="h-4 w-[100px]" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : allGoals.length === 0 ? (
-            <div className="text-center py-12">
-              <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No goals set yet</h3>
-              <p className="text-muted-foreground mb-4">Create your first financial goal to start planning for the future</p>
-              <Button onClick={() => setShowForm(true)}>Create Your First Goal</Button>
-            </div>
-          ) : (
+          {allGoals.length > 0 ? (
             <div className="space-y-6">
               {allGoals.map((goal) => {
-                const progress = (goal.current_amount / goal.target_amount) * 100;
-                const remaining = goal.target_amount - goal.current_amount;
-                const targetDate = new Date(goal.target_date);
-                const now = new Date();
-                const daysUntilTarget = Math.ceil((targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                const progress = (Number(goal.current_amount || 0) / Number(goal.target_amount)) * 100;
+                const remaining = Number(goal.target_amount) - Number(goal.current_amount || 0);
+                const daysUntilTarget = Math.ceil((new Date(goal.target_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
                 
                 return (
-                  <div key={goal.id} className="p-4 rounded-lg bg-muted/50 space-y-3">
-                    <div className="flex justify-between items-start">
+                  <div key={goal.id} className="p-6 bg-muted/50 rounded-lg">
+                    <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h4 className="font-semibold text-lg">{goal.goal_name}</h4>
+                        <h3 className="text-lg font-semibold">{goal.goal_name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline">
+                            <Calendar className="w-3 h-3 mr-1" />
+                            {new Date(goal.target_date).toLocaleDateString()}
+                          </Badge>
+                          <Badge variant="secondary">
+                            {goal.priority} priority
+                          </Badge>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className={getPriorityColor(goal.priority)} variant="secondary">
-                          {goal.priority} priority
-                        </Badge>
-                        <Badge variant="outline">
-                          <Calendar className="w-3 h-3 mr-1" />
-                          {targetDate.toLocaleDateString()}
-                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedGoal(goal);
+                            setShowEditForm(true);
+                          }}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setGoalToDelete(goal)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Goal</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete "{goal.goal_name}"? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleDeleteGoal} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                     
-                    <Progress value={Math.min(progress, 100)} className="h-3" />
+                    <Progress value={progress} className="h-3 mb-4" />
                     
                     <div className="flex justify-between items-center text-sm">
                       <div className="flex items-center gap-4">
                         <span className="text-muted-foreground">
-                          {formatCurrency(goal.current_amount)} / {formatCurrency(goal.target_amount)}
+                          {formatCurrencyWithCurrency(Number(goal.current_amount || 0), goal.currency)} / {formatCurrencyWithCurrency(Number(goal.target_amount), goal.currency)}
                         </span>
                         <span className="font-medium text-primary">
                           {progress.toFixed(1)}% complete
@@ -261,7 +284,7 @@ export default function Goals() {
                       <div className="flex items-center gap-4">
                         {remaining > 0 && (
                           <span className="text-muted-foreground">
-                            {formatCurrency(remaining)} remaining
+                            {formatCurrencyWithCurrency(remaining, goal.currency)} remaining
                           </span>
                         )}
                         {daysUntilTarget > 0 ? (
@@ -274,70 +297,38 @@ export default function Goals() {
                             Overdue
                           </span>
                         )}
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-6 px-2 text-xs"
-                            onClick={() => setSelectedGoal(goal)}
-                          >
-                            <DollarSign className="w-3 h-3 mr-1" />
-                            Update
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => {
-                              setSelectedGoal(goal);
-                              setShowEditForm(true);
-                            }}
-                          >
-                            <Edit className="w-3 h-3" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => setGoalToDelete(goal)}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This action cannot be undone. This will permanently delete your goal and all associated progress.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel onClick={() => setGoalToDelete(null)}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDeleteGoal} disabled={deleteGoal.isPending}>
-                                  {deleteGoal.isPending ? (
-                                    <>
-                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                      Deleting...
-                                    </>
-                                  ) : (
-                                    "Delete"
-                                  )}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
                       </div>
                     </div>
                   </div>
                 );
               })}
             </div>
+          ) : (
+            <div className="text-center text-muted-foreground py-8">
+              No active goals yet. Create your first financial goal!
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Goal Dialog */}
+      <Dialog open={showEditForm} onOpenChange={setShowEditForm}>
+        <DialogContent className="max-w-md">
+          {selectedGoal && (
+            <EditGoalForm
+              goal={selectedGoal}
+              onClose={() => {
+                setShowEditForm(false);
+                setSelectedGoal(null);
+              }}
+              onSuccess={() => {
+                setShowEditForm(false);
+                setSelectedGoal(null);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

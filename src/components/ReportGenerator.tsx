@@ -4,10 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useIncomes, useTransactions } from "@/hooks/useFinancialData";
+import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, isWithinInterval } from "date-fns";
-import { FileText, Download, Calendar } from "lucide-react";
-import jsPDF from "jspdf";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface ReportGeneratorProps {
   onClose: () => void;
@@ -21,14 +20,7 @@ export function ReportGenerator({ onClose }: ReportGeneratorProps) {
   const { data: incomes } = useIncomes();
   const { data: transactions } = useTransactions();
   const { toast } = useToast();
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-RW', {
-      style: 'currency',
-      currency: 'RWF',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  const { formatCurrencyWithCurrency, groupByCurrency } = useCurrency();
 
   const generateReport = async () => {
     if (!incomes || !transactions) {
@@ -41,133 +33,99 @@ export function ReportGenerator({ onClose }: ReportGeneratorProps) {
     }
 
     setIsGenerating(true);
-    
-    try {
-      const start = parseISO(startDate);
-      const end = parseISO(endDate);
 
+    try {
       // Filter data by date range
-      const filteredIncomes = incomes.filter(income => 
-        isWithinInterval(parseISO(income.received_date), { start, end })
-      );
-      
-      const filteredExpenses = transactions.filter(transaction => 
-        transaction.transaction_type === 'expense' &&
-        isWithinInterval(parseISO(transaction.transaction_date), { start, end })
-      );
+      const filteredIncomes = incomes.filter(income => {
+        const incomeDate = new Date(income.received_date);
+        return incomeDate >= new Date(startDate) && incomeDate <= new Date(endDate);
+      });
+
+      const filteredTransactions = transactions.filter(transaction => {
+        const transactionDate = new Date(transaction.transaction_date);
+        return transactionDate >= new Date(startDate) && transactionDate <= new Date(endDate);
+      });
+
+      // Group by currency
+      const incomesByCurrency = groupByCurrency(filteredIncomes.map(income => ({ 
+        currency: income.currency, 
+        amount: Number(income.amount) 
+      })));
+
+      const transactionsByCurrency = groupByCurrency(filteredTransactions.map(transaction => ({ 
+        currency: transaction.currency, 
+        amount: Number(transaction.amount) 
+      })));
 
       // Calculate totals
-      const totalEarnings = filteredIncomes.reduce((sum, income) => sum + Number(income.amount), 0);
-      const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
-      const netAmount = totalEarnings - totalExpenses;
+      const totalIncome = filteredIncomes.reduce((sum, income) => sum + Number(income.amount), 0);
+      const totalExpenses = filteredTransactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+      const netIncome = totalIncome - totalExpenses;
 
-      // Create PDF
-      const pdf = new jsPDF();
+      // Create report content
+      let reportContent = `Financial Report\n`;
+      reportContent += `Period: ${format(new Date(startDate), 'MMM dd, yyyy')} - ${format(new Date(endDate), 'MMM dd, yyyy')}\n\n`;
+
+      // Income breakdown by currency
+      reportContent += `INCOME BREAKDOWN:\n`;
+      Object.entries(incomesByCurrency).forEach(([currency, { total }]) => {
+        reportContent += `${formatCurrencyWithCurrency(total, currency)}\n`;
+      });
+      reportContent += `\n`;
+
+      // Expense breakdown by currency
+      reportContent += `EXPENSE BREAKDOWN:\n`;
+      Object.entries(transactionsByCurrency).forEach(([currency, { total }]) => {
+        reportContent += `${formatCurrencyWithCurrency(total, currency)}\n`;
+      });
+      reportContent += `\n`;
+
+      // Net income by currency
+      reportContent += `NET INCOME:\n`;
+      const allCurrencies = new Set([
+        ...Object.keys(incomesByCurrency),
+        ...Object.keys(transactionsByCurrency)
+      ]);
       
-      // Header
-      pdf.setFontSize(20);
-      pdf.text('Financial Report', 20, 30);
-      
-      pdf.setFontSize(12);
-      pdf.text(`Period: ${format(start, 'MMM dd, yyyy')} - ${format(end, 'MMM dd, yyyy')}`, 20, 45);
-      pdf.text(`Generated on: ${format(new Date(), 'MMM dd, yyyy HH:mm')}`, 20, 55);
+      allCurrencies.forEach(currency => {
+        const incomeTotal = incomesByCurrency[currency]?.total || 0;
+        const expenseTotal = transactionsByCurrency[currency]?.total || 0;
+        const net = incomeTotal - expenseTotal;
+        reportContent += `${formatCurrencyWithCurrency(net, currency)}\n`;
+      });
 
-      // Summary
-      pdf.setFontSize(16);
-      pdf.text('Summary', 20, 75);
-      
-      pdf.setFontSize(12);
-      pdf.text(`Total Earnings: ${formatCurrency(totalEarnings)}`, 20, 90);
-      pdf.text(`Total Expenses: ${formatCurrency(totalExpenses)}`, 20, 100);
-      pdf.text(`Net Amount: ${formatCurrency(netAmount)}`, 20, 110);
+      // Top expense categories
+      const categoryTotals: Record<string, number> = {};
+      filteredTransactions.forEach(transaction => {
+        const category = transaction.category || 'Uncategorized';
+        categoryTotals[category] = (categoryTotals[category] || 0) + Number(transaction.amount);
+      });
 
-      // Initialize yPos for content positioning
-      let yPos = 130;
+      const topCategories = Object.entries(categoryTotals)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5);
 
-      // Earnings Detail
-      if (filteredIncomes.length > 0) {
-        pdf.setFontSize(16);
-        pdf.text('Earnings Details', 20, yPos);
-        yPos += 15;
-        
-        pdf.setFontSize(10);
-        
-        filteredIncomes.forEach(income => {
-          if (yPos > 270) {
-            pdf.addPage();
-            yPos = 20;
-          }
-          
-          pdf.text(`${format(parseISO(income.received_date), 'MMM dd')} - ${income.description}`, 20, yPos);
-          pdf.text(`${formatCurrency(Number(income.amount))}`, 150, yPos);
-          pdf.text(`${income.source_location}`, 110, yPos);
-          yPos += 10;
-        });
-        
-        yPos += 10;
-      }
-
-      // Expenses Detail
-      if (filteredExpenses.length > 0) {
-        if (yPos > 200) {
-          pdf.addPage();
-          yPos = 20;
-        }
-        
-        pdf.setFontSize(16);
-        pdf.text('Expenses Details', 20, yPos);
-        yPos += 15;
-        
-        pdf.setFontSize(10);
-        
-        // Group expenses by category
-        const expensesByCategory = filteredExpenses.reduce((acc, expense) => {
-          const category = expense.category || 'Uncategorized';
-          if (!acc[category]) acc[category] = [];
-          acc[category].push(expense);
-          return acc;
-        }, {} as Record<string, typeof filteredExpenses>);
-
-        Object.entries(expensesByCategory).forEach(([category, expenses]) => {
-          if (yPos > 270) {
-            pdf.addPage();
-            yPos = 20;
-          }
-          
-          pdf.setFontSize(12);
-          pdf.text(`${category}:`, 20, yPos);
-          yPos += 8;
-          
-          pdf.setFontSize(10);
-          const categoryTotal = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
-          
-          expenses.forEach(expense => {
-            if (yPos > 270) {
-              pdf.addPage();
-              yPos = 20;
-            }
-            
-            pdf.text(`  ${format(parseISO(expense.transaction_date), 'MMM dd')} - ${expense.description}`, 25, yPos);
-            pdf.text(`${formatCurrency(Number(expense.amount))}`, 150, yPos);
-            if (expense.source_location) {
-              pdf.text(`${expense.source_location}`, 110, yPos);
-            }
-            yPos += 8;
-          });
-          
-          pdf.setFontSize(11);
-          pdf.text(`Category Total: ${formatCurrency(categoryTotal)}`, 25, yPos);
-          yPos += 15;
+      if (topCategories.length > 0) {
+        reportContent += `\nTOP EXPENSE CATEGORIES:\n`;
+        topCategories.forEach(([category, amount]) => {
+          reportContent += `${category}: ${formatCurrencyWithCurrency(amount, 'RWF')}\n`;
         });
       }
 
-      // Save the PDF
-      const fileName = `financial-report-${format(start, 'yyyy-MM')}-${format(end, 'yyyy-MM')}.pdf`;
-      pdf.save(fileName);
+      // Download report
+      const blob = new Blob([reportContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `financial-report-${format(new Date(), 'yyyy-MM-dd')}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       toast({
         title: "Report Generated",
-        description: `Financial report for ${format(start, 'MMM yyyy')} to ${format(end, 'MMM yyyy')} has been downloaded.`,
+        description: "Your financial report has been downloaded successfully.",
       });
 
       onClose();
@@ -185,13 +143,8 @@ export function ReportGenerator({ onClose }: ReportGeneratorProps) {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="w-5 h-5" />
-          Generate Financial Report
-        </CardTitle>
-        <CardDescription>
-          Generate a PDF report of your earnings and expenses for a specific period
-        </CardDescription>
+        <CardTitle>Generate Financial Report</CardTitle>
+        <CardDescription>Create a detailed report of your income and expenses</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -214,26 +167,16 @@ export function ReportGenerator({ onClose }: ReportGeneratorProps) {
           />
         </div>
 
-        <div className="flex gap-3 pt-4">
-          <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+        <div className="flex gap-2 pt-4">
+          <Button variant="outline" onClick={onClose} className="flex-1">
             Cancel
           </Button>
           <Button 
             onClick={generateReport} 
-            disabled={isGenerating} 
-            className="flex-1 gap-2"
+            disabled={isGenerating}
+            className="flex-1"
           >
-            {isGenerating ? (
-              <>
-                <Calendar className="w-4 h-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                Generate PDF
-              </>
-            )}
+            {isGenerating ? "Generating..." : "Generate Report"}
           </Button>
         </div>
       </CardContent>

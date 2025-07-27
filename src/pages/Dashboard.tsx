@@ -27,6 +27,7 @@ import { useIncomes, useAssets, useGoals, useBudgetCategories, useTransactions, 
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { EditIncomeForm } from "@/components/forms/EditIncomeForm";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/hooks/useCurrency";
 
 const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
 
@@ -48,14 +49,7 @@ export default function Dashboard() {
   const { data: currentEarnings } = useCurrentEarnings();
   const deleteIncome = useDeleteIncome();
   const { toast } = useToast();
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-RW', {
-      style: 'currency',
-      currency: 'RWF',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  const { formatCurrency, formatCurrencyWithCurrency, groupByCurrency } = useCurrency();
 
   const handleDeleteIncome = async () => {
     if (!incomeToDelete) return;
@@ -76,8 +70,22 @@ export default function Dashboard() {
     }
   };
 
-  // Calculate totals
-  const totalAssets = assets?.reduce((sum, asset) => sum + Number(asset.current_value), 0) || 0;
+  // Calculate totals with currency grouping
+  const assetsByCurrency = assets ? groupByCurrency(assets.map(asset => ({ 
+    currency: asset.currency, 
+    amount: Number(asset.current_value) 
+  }))) : {};
+  
+  const incomesByCurrency = incomes ? groupByCurrency(incomes.map(income => ({ 
+    currency: income.currency, 
+    amount: Number(income.amount) 
+  }))) : {};
+  
+  const goalsByCurrency = goals ? groupByCurrency(goals.map(goal => ({ 
+    currency: goal.currency, 
+    amount: Number(goal.target_amount) 
+  }))) : {};
+
   const currentMonthIncome = incomes?.filter(income => 
     format(new Date(income.received_date), 'yyyy-MM') === currentMonth
   ).reduce((sum, income) => sum + Number(income.amount), 0) || 0;
@@ -168,7 +176,16 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{formatCurrency(totalAssets)}</div>
+            <div className="space-y-1">
+              {Object.entries(assetsByCurrency).map(([currency, { total }]) => (
+                <div key={currency} className="text-lg font-bold text-foreground">
+                  {formatCurrencyWithCurrency(total, currency)}
+                </div>
+              ))}
+              {Object.keys(assetsByCurrency).length === 0 && (
+                <div className="text-lg font-bold text-foreground">RWF 0</div>
+              )}
+            </div>
             <Badge variant="secondary" className="mt-2 bg-success/10 text-success">
               <TrendingUp className="w-3 h-3 mr-1" />
               {assets?.length || 0} assets
@@ -184,7 +201,16 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{formatCurrency(currentEarnings || 0)}</div>
+            <div className="space-y-1">
+              {Object.entries(incomesByCurrency).map(([currency, { total }]) => (
+                <div key={currency} className="text-lg font-bold text-foreground">
+                  {formatCurrencyWithCurrency(total, currency)}
+                </div>
+              ))}
+              {Object.keys(incomesByCurrency).length === 0 && (
+                <div className="text-lg font-bold text-foreground">RWF 0</div>
+              )}
+            </div>
             <Badge variant="secondary" className="mt-2 bg-primary/10 text-primary">
               <TrendingUp className="w-3 h-3 mr-1" />
               Available Now
@@ -218,9 +244,18 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">{allGoals.length}</div>
-            <Badge variant="secondary" className="mt-2 bg-destructive/10 text-destructive">
-              Total: {formatCurrency(allGoals.reduce((sum, goal) => sum + Number(goal.target_amount), 0))}
-            </Badge>
+            <div className="space-y-1 mt-2">
+              {Object.entries(goalsByCurrency).map(([currency, { total }]) => (
+                <Badge key={currency} variant="secondary" className="bg-destructive/10 text-destructive">
+                  {formatCurrencyWithCurrency(total, currency)}
+                </Badge>
+              ))}
+              {Object.keys(goalsByCurrency).length === 0 && (
+                <Badge variant="secondary" className="bg-destructive/10 text-destructive">
+                  RWF 0
+                </Badge>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -325,8 +360,10 @@ export default function Dashboard() {
                     </div>
                     <Progress value={progress} className="h-2" />
                     <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>{formatCurrency(Number(goal.current_amount || 0))} / {formatCurrency(Number(goal.target_amount))}</span>
-                      <span>{formatCurrency(remaining)} remaining</span>
+                      <span>
+                        {formatCurrencyWithCurrency(Number(goal.current_amount || 0), goal.currency)} / {formatCurrencyWithCurrency(Number(goal.target_amount), goal.currency)}
+                      </span>
+                      <span>{formatCurrencyWithCurrency(remaining, goal.currency)} remaining</span>
                     </div>
                   </div>
                 );
@@ -379,28 +416,35 @@ export default function Dashboard() {
       <Card className="shadow-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5" />
+            <DollarSign className="w-5 h-5" />
             Recent Earnings
           </CardTitle>
-          <CardDescription>Latest earnings entries with source tracking</CardDescription>
+          <CardDescription>Your latest income entries</CardDescription>
         </CardHeader>
         <CardContent>
           {recentIncomes.length > 0 ? (
             <div className="space-y-4">
               {recentIncomes.map((income) => (
-                <div key={income.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-success"></div>
+                <div key={income.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      {income.source_type === 'salary' && <Building2 className="w-4 h-4 text-primary" />}
+                      {income.source_type === 'freelance' && <Smartphone className="w-4 h-4 text-success" />}
+                      {income.source_type === 'investment' && <TrendingUp className="w-4 h-4 text-warning" />}
+                      {income.source_type === 'business' && <PiggyBank className="w-4 h-4 text-destructive" />}
+                      {income.source_type === 'gift' && <PlusCircle className="w-4 h-4 text-muted-foreground" />}
+                      {income.source_type === 'other' && <DollarSign className="w-4 h-4 text-muted-foreground" />}
+                    </div>
                     <div>
                       <p className="font-medium">{income.description}</p>
                       <p className="text-sm text-muted-foreground">
-                        {income.source_location} • {new Date(income.received_date).toLocaleDateString()}
+                        {format(new Date(income.received_date), 'MMM dd, yyyy')} • {income.source_location}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right mr-2">
-                      <p className="font-bold text-success">+{formatCurrency(Number(income.amount))}</p>
+                      <p className="font-bold text-success">+{formatCurrencyWithCurrency(Number(income.amount), income.currency)}</p>
                     </div>
                     <Button
                       variant="outline"
@@ -424,22 +468,15 @@ export default function Dashboard() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogTitle>Delete Income</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete your income entry.
+                            Are you sure you want to delete "{income.description}"? This action cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel onClick={() => setIncomeToDelete(null)}>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleDeleteIncome} disabled={deleteIncome.isPending}>
-                            {deleteIncome.isPending ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Deleting...
-                              </>
-                            ) : (
-                              "Delete"
-                            )}
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDeleteIncome} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -450,7 +487,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-8">
-              No earnings entries yet. Add your first earnings!
+              No income entries yet. Add your first earnings!
             </div>
           )}
         </CardContent>
@@ -458,18 +495,17 @@ export default function Dashboard() {
 
       {/* Edit Income Dialog */}
       <Dialog open={showEditForm} onOpenChange={setShowEditForm}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-md">
           {selectedIncome && (
-            <EditIncomeForm 
+            <EditIncomeForm
               income={selectedIncome}
-              onClose={() => setShowEditForm(false)}
+              onClose={() => {
+                setShowEditForm(false);
+                setSelectedIncome(null);
+              }}
               onSuccess={() => {
                 setShowEditForm(false);
                 setSelectedIncome(null);
-                toast({
-                  title: "Income updated",
-                  description: `Income "${selectedIncome?.description}" updated successfully.`,
-                });
               }}
             />
           )}

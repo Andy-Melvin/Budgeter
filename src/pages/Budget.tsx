@@ -1,17 +1,28 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Plus, PieChart, Calculator, FileText, DollarSign, Edit, Trash2, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { 
+  Plus, 
+  DollarSign, 
+  Target, 
+  TrendingUp, 
+  FileText,
+  Edit,
+  Trash2,
+  Loader2
+} from "lucide-react";
 import { useBudgetCategories, useProfile, useCurrentEarnings, useDeleteBudgetCategory, BudgetCategory } from "@/hooks/useFinancialData";
+import { format } from "date-fns";
 import { BudgetCategoryForm } from "@/components/forms/BudgetCategoryForm";
 import { EditBudgetCategoryForm } from "@/components/forms/EditBudgetCategoryForm";
 import { ReportGenerator } from "@/components/ReportGenerator";
-import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/hooks/useCurrency";
 
 export default function Budget() {
   const [showBudgetForm, setShowBudgetForm] = useState(false);
@@ -26,14 +37,7 @@ export default function Budget() {
   const { data: currentEarnings } = useCurrentEarnings();
   const deleteBudgetCategory = useDeleteBudgetCategory();
   const { toast } = useToast();
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-RW', {
-      style: 'currency',
-      currency: 'RWF',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  const { formatCurrency, formatCurrencyWithCurrency, groupByCurrency } = useCurrency();
 
   const handleDeleteCategory = async () => {
     if (!categoryToDelete) return;
@@ -54,31 +58,101 @@ export default function Budget() {
     }
   };
 
+  // Calculate totals with currency grouping
+  const budgetByCurrency = budgetCategories ? groupByCurrency(budgetCategories.map(cat => ({ 
+    currency: cat.currency, 
+    amount: Number(cat.budgeted_amount) 
+  }))) : {};
+
+  const spentByCurrency = budgetCategories ? groupByCurrency(budgetCategories.map(cat => ({ 
+    currency: cat.currency, 
+    amount: Number(cat.spent_amount || 0) 
+  }))) : {};
+
   const totalBudgeted = budgetCategories?.reduce((sum, cat) => sum + Number(cat.budgeted_amount), 0) || 0;
   const totalSpent = budgetCategories?.reduce((sum, cat) => sum + Number(cat.spent_amount || 0), 0) || 0;
   const remainingBudget = totalBudgeted - totalSpent;
   const availableEarnings = currentEarnings || 0;
 
+  if (showBudgetForm) {
+    return (
+      <div className="space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Create Budget Category</h1>
+            <p className="text-muted-foreground">Allocate your earnings to spending categories</p>
+          </div>
+        </div>
+        <BudgetCategoryForm 
+          onClose={() => setShowBudgetForm(false)} 
+          onSuccess={() => {
+            setShowBudgetForm(false);
+            refetch();
+          }} 
+        />
+      </div>
+    );
+  }
+
+  if (showReportGenerator) {
+    return (
+      <div className="space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Generate Report</h1>
+            <p className="text-muted-foreground">Create a detailed financial report</p>
+          </div>
+        </div>
+        <ReportGenerator onClose={() => setShowReportGenerator(false)} />
+      </div>
+    );
+  }
+
+  if (showEditForm && selectedCategory) {
+    return (
+      <div className="space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Edit Budget Category</h1>
+            <p className="text-muted-foreground">Update your budget allocation</p>
+          </div>
+        </div>
+        <EditBudgetCategoryForm 
+          category={selectedCategory}
+          onClose={() => {
+            setShowEditForm(false);
+            setSelectedCategory(null);
+          }} 
+          onSuccess={() => {
+            setShowEditForm(false);
+            setSelectedCategory(null);
+            refetch();
+          }} 
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Monthly Budget</h1>
-          <p className="text-muted-foreground">Plan and track your monthly spending based on current earnings</p>
+          <h1 className="text-3xl font-bold">Budget Management</h1>
+          <p className="text-muted-foreground">Plan and track your monthly spending</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" className="gap-2" onClick={() => setShowReportGenerator(true)}>
-            <FileText className="w-4 h-4" />
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowReportGenerator(true)}>
+            <FileText className="w-4 h-4 mr-2" />
             Generate Report
           </Button>
-          <Button className="gap-2" onClick={() => setShowBudgetForm(true)}>
-            <Plus className="w-4 h-4" />
+          <Button onClick={() => setShowBudgetForm(true)}>
+            <Plus className="w-4 h-4 mr-2" />
             Add Category
           </Button>
         </div>
       </div>
 
-      {/* Current Earnings Summary */}
+      {/* Available Earnings Card */}
       <Card className="bg-gradient-to-br from-card to-muted/20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -92,45 +166,86 @@ export default function Budget() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
             <div className="text-center p-4 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground">Total Budgeted</p>
-              <p className="text-xl font-semibold">{formatCurrency(totalBudgeted)}</p>
+              <div className="space-y-1">
+                {Object.entries(budgetByCurrency).map(([currency, { total }]) => (
+                  <p key={currency} className="text-xl font-semibold">
+                    {formatCurrencyWithCurrency(total, currency)}
+                  </p>
+                ))}
+                {Object.keys(budgetByCurrency).length === 0 && (
+                  <p className="text-xl font-semibold">RWF 0</p>
+                )}
+              </div>
             </div>
             <div className="text-center p-4 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground">Total Spent</p>
-              <p className="text-xl font-semibold text-destructive">{formatCurrency(totalSpent)}</p>
+              <div className="space-y-1">
+                {Object.entries(spentByCurrency).map(([currency, { total }]) => (
+                  <p key={currency} className="text-xl font-semibold text-destructive">
+                    {formatCurrencyWithCurrency(total, currency)}
+                  </p>
+                ))}
+                {Object.keys(spentByCurrency).length === 0 && (
+                  <p className="text-xl font-semibold text-destructive">RWF 0</p>
+                )}
+              </div>
             </div>
             <div className="text-center p-4 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground">Remaining</p>
-              <p className="text-xl font-semibold text-success">{formatCurrency(remainingBudget)}</p>
+              <div className="space-y-1">
+                {Object.entries(budgetByCurrency).map(([currency, { total }]) => {
+                  const spent = spentByCurrency[currency]?.total || 0;
+                  return (
+                    <p key={currency} className="text-xl font-semibold text-success">
+                      {formatCurrencyWithCurrency(total - spent, currency)}
+                    </p>
+                  );
+                })}
+                {Object.keys(budgetByCurrency).length === 0 && (
+                  <p className="text-xl font-semibold text-success">RWF 0</p>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Budget Categories */}
-      <div className="grid gap-6">
-        {budgetCategories && budgetCategories.length > 0 ? (
-          <div className="grid gap-4">
-            {budgetCategories.map((category) => {
-              const spent = Number(category.spent_amount || 0);
-              const budgeted = Number(category.budgeted_amount);
-              const progress = (spent / budgeted) * 100;
-              const remaining = budgeted - spent;
-              
-              return (
-                <Card key={category.id} className="shadow-card">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-4 h-4 rounded-full" 
-                          style={{ backgroundColor: category.color || '#3b82f6' }}
-                        />
-                        <h3 className="font-semibold text-lg">{category.category_name}</h3>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="w-5 h-5" />
+            Budget Categories
+          </CardTitle>
+          <CardDescription>Your monthly budget allocations</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {budgetCategories && budgetCategories.length > 0 ? (
+            <div className="space-y-6">
+              {budgetCategories.map((category) => {
+                const spent = Number(category.spent_amount || 0);
+                const budgeted = Number(category.budgeted_amount);
+                const progress = budgeted > 0 ? (spent / budgeted) * 100 : 0;
+                const remaining = budgeted - spent;
+                
+                return (
+                  <div key={category.id} className="p-6 bg-muted/50 rounded-lg">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold">{category.category_name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline">
+                            {formatCurrencyWithCurrency(budgeted, category.currency)} budgeted
+                          </Badge>
+                          {category.color && (
+                            <div 
+                              className="w-4 h-4 rounded-full" 
+                              style={{ backgroundColor: category.color }}
+                            />
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={progress > 90 ? "destructive" : progress > 70 ? "secondary" : "default"}>
-                          {Math.round(progress)}% used
-                        </Badge>
                         <Button
                           variant="outline"
                           size="sm"
@@ -153,22 +268,15 @@ export default function Budget() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                              <AlertDialogTitle>Delete Budget Category</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete your budget category and all associated data.
+                                Are you sure you want to delete "{category.category_name}"? This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel onClick={() => setCategoryToDelete(null)}>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={handleDeleteCategory} disabled={deleteBudgetCategory.isPending}>
-                                {deleteBudgetCategory.isPending ? (
-                                  <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    Deleting...
-                                  </>
-                                ) : (
-                                  "Delete"
-                                )}
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleDeleteCategory} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Delete
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -176,88 +284,41 @@ export default function Budget() {
                       </div>
                     </div>
                     
-                    <Progress value={Math.min(progress, 100)} className="mb-4" />
+                    <Progress value={Math.min(progress, 100)} className="h-3 mb-4" />
                     
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Budgeted</p>
-                        <p className="font-semibold">{formatCurrency(budgeted)}</p>
+                    <div className="flex justify-between items-center text-sm">
+                      <div className="flex items-center gap-4">
+                        <span className="text-muted-foreground">
+                          {formatCurrencyWithCurrency(spent, category.currency)} / {formatCurrencyWithCurrency(budgeted, category.currency)}
+                        </span>
+                        <span className={`font-medium ${progress > 100 ? 'text-destructive' : 'text-primary'}`}>
+                          {progress.toFixed(1)}% used
+                        </span>
                       </div>
-                      <div>
-                        <p className="text-muted-foreground">Spent</p>
-                        <p className="font-semibold text-destructive">{formatCurrency(spent)}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Remaining</p>
-                        <p className={`font-semibold ${remaining >= 0 ? 'text-success' : 'text-destructive'}`}>
-                          {formatCurrency(remaining)}
-                        </p>
+                      <div className="flex items-center gap-4">
+                        {remaining > 0 && (
+                          <span className="text-success">
+                            {formatCurrencyWithCurrency(remaining, category.currency)} remaining
+                          </span>
+                        )}
+                        {remaining < 0 && (
+                          <span className="text-destructive">
+                            {formatCurrencyWithCurrency(Math.abs(remaining), category.currency)} over budget
+                          </span>
+                        )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PieChart className="w-5 h-5" />
-                Budget Planning
-              </CardTitle>
-              <CardDescription>Allocate your earnings across different categories</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12">
-                <Calculator className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Create Your First Budget</h3>
-                <p className="text-muted-foreground mb-4">
-                  You have {formatCurrency(availableEarnings)} available to budget across categories
-                </p>
-                <Button onClick={() => setShowBudgetForm(true)}>Setup Budget</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Dialogs */}
-      <Dialog open={showBudgetForm} onOpenChange={setShowBudgetForm}>
-        <DialogContent className="sm:max-w-md">
-          <BudgetCategoryForm 
-            onClose={() => setShowBudgetForm(false)}
-            onSuccess={() => refetch()}
-          />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showReportGenerator} onOpenChange={setShowReportGenerator}>
-        <DialogContent className="sm:max-w-md">
-          <ReportGenerator onClose={() => setShowReportGenerator(false)} />
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Budget Category Dialog */}
-      <Dialog open={showEditForm} onOpenChange={setShowEditForm}>
-        <DialogContent className="sm:max-w-md">
-          {selectedCategory && (
-            <EditBudgetCategoryForm 
-              category={selectedCategory}
-              onClose={() => setShowEditForm(false)}
-              onSuccess={() => {
-                setShowEditForm(false);
-                setSelectedCategory(null);
-                refetch();
-                toast({
-                  title: "Budget category updated",
-                  description: `Budget category "${selectedCategory?.category_name}" updated successfully.`,
-                });
-              }}
-            />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground py-8">
+              No budget categories for this month. Create your first budget category!
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </CardContent>
+      </Card>
     </div>
   );
 }

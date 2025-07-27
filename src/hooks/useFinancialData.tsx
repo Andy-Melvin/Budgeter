@@ -372,6 +372,28 @@ export function useUpdateTransaction() {
   });
 }
 
+export function useUpdateAsset() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Asset> }) => {
+      const { data, error } = await supabase
+        .from("assets")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets", user?.id] });
+    },
+  });
+}
+
 export function useUpdateGoal() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
