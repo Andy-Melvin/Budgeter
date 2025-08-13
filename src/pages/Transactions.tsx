@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,14 @@ export default function Transactions() {
   const deleteTransaction = useDeleteTransaction();
   const { toast } = useToast();
   const { formatCurrencyWithCurrency, groupByCurrency } = useCurrency();
+  const ITEMS_PER_PAGE = 5;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil((transactions?.length || 0) / ITEMS_PER_PAGE));
+  const paginatedTransactions = transactions?.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE) || [];
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [transactions, page, totalPages]);
 
   const handleDeleteTransaction = async () => {
     if (!transactionToDelete) return;
@@ -184,7 +192,7 @@ export default function Transactions() {
         <CardContent>
           {transactions && transactions.length > 0 ? (
             <div className="space-y-4">
-              {transactions.map((transaction) => (
+              {paginatedTransactions.map((transaction) => (
                 <div key={transaction.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -240,6 +248,17 @@ export default function Transactions() {
                   </div>
                 </div>
               ))}
+              {totalPages > 1 && (
+                <div className="pt-2 flex justify-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Previous</Button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                    <Button key={p} variant={p === page ? "secondary" : "ghost"} size="sm" onClick={() => setPage(p)}>
+                      {p}
+                    </Button>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</Button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-8">

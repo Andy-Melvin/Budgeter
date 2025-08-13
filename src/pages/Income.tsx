@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,14 @@ export default function Income() {
   const deleteIncome = useDeleteIncome();
   const { toast } = useToast();
   const { formatCurrencyWithCurrency, groupByCurrency } = useCurrency();
+  const ITEMS_PER_PAGE = 5;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil((incomes?.length || 0) / ITEMS_PER_PAGE));
+  const paginatedIncomes = incomes?.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE) || [];
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [incomes, page, totalPages]);
 
   const handleDeleteIncome = async () => {
     if (!incomeToDelete) return;
@@ -188,7 +196,7 @@ export default function Income() {
         <CardContent>
           {incomes && incomes.length > 0 ? (
             <div className="space-y-4">
-              {incomes.map((income) => (
+              {paginatedIncomes.map((income) => (
                 <div key={income.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
@@ -249,6 +257,17 @@ export default function Income() {
                   </div>
                 </div>
               ))}
+              {totalPages > 1 && (
+                <div className="pt-2 flex justify-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Previous</Button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                    <Button key={p} variant={p === page ? "secondary" : "ghost"} size="sm" onClick={() => setPage(p)}>
+                      {p}
+                    </Button>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</Button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-8">

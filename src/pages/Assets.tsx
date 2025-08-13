@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { 
   Plus, 
   TrendingUp, 
@@ -49,6 +50,15 @@ export default function Assets() {
   const deleteAsset = useDeleteAsset();
   const { toast } = useToast();
   const { formatCurrencyWithCurrency, groupByCurrency } = useCurrency();
+
+  const ITEMS_PER_PAGE = 5;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil((assets?.length || 0) / ITEMS_PER_PAGE));
+  const paginatedAssets = assets?.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE) || [];
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [assets, page, totalPages]);
 
   const handleDeleteAsset = async () => {
     if (!assetToDelete) return;
@@ -202,7 +212,7 @@ export default function Assets() {
         <CardContent>
           {assets && assets.length > 0 ? (
             <div className="space-y-4">
-              {assets?.map((asset) => {
+              {paginatedAssets.map((asset) => {
                 const AssetIcon = getAssetIcon(asset.asset_type);
                 return (
                   <div key={asset.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
@@ -271,6 +281,35 @@ export default function Assets() {
                   </div>
                 );
               })}
+              {totalPages > 1 && (
+                <Pagination className="pt-2">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); setPage((p) => Math.max(1, p - 1)); }}
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <PaginationItem key={p}>
+                        <PaginationLink
+                          href="#"
+                          isActive={p === page}
+                          onClick={(e) => { e.preventDefault(); setPage(p); }}
+                        >
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); setPage((p) => Math.min(totalPages, p + 1)); }}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-8">

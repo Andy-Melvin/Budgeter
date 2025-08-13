@@ -19,7 +19,10 @@ import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { initializeMobileApp } from "@/lib/mobile-config";
+import { simpleOfflineSync } from "@/lib/offline-sync-simple";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
 
 function App() {
   // Create QueryClient with stable reference
@@ -31,6 +34,34 @@ function App() {
       },
     },
   }));
+
+  // Initialize mobile app features and offline sync
+  useEffect(() => {
+    initializeMobileApp();
+    
+    // Set up offline sync
+    const handleOnline = () => {
+      console.log('Back online, syncing data...');
+      simpleOfflineSync.syncOfflineData();
+    };
+
+    const handleOffline = () => {
+      console.log('Gone offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial sync if online
+    if (navigator.onLine) {
+      simpleOfflineSync.syncOfflineData();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -61,6 +92,7 @@ function App() {
                 </Routes>
               </BrowserRouter>
             </TooltipProvider>
+            <OfflineIndicator />
           </CurrencyProvider>
         </AuthProvider>
       </ThemeProvider>
